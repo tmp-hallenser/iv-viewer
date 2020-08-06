@@ -272,6 +272,7 @@
     if (options.html) elem.innerHTML = options.html;
     if (options.className) elem.className = options.className;
     if (options.src) elem.src = options.src;
+    if (options.srcset) elem.srcset = options.srcset;
     if (options.style) elem.style.cssText = options.style;
     if (options.child) elem.appendChild(options.child); // Insert before
 
@@ -654,7 +655,8 @@
           container = _this$_findContainerA.container,
           domElement = _this$_findContainerA.domElement,
           imageSrc = _this$_findContainerA.imageSrc,
-          hiResImageSrc = _this$_findContainerA.hiResImageSrc; // containers for elements
+          hiResImageSrc = _this$_findContainerA.hiResImageSrc,
+          srcSet = _this$_findContainerA.srcSet; // containers for elements
 
 
       this._elements = {
@@ -674,7 +676,8 @@
       };
       this._images = {
         imageSrc: imageSrc,
-        hiResImageSrc: hiResImageSrc
+        hiResImageSrc: hiResImageSrc,
+        srcSet: srcSet
       };
 
       this._init();
@@ -691,7 +694,7 @@
       key: "_findContainerAndImageSrc",
       value: function _findContainerAndImageSrc(element) {
         var domElement = element;
-        var imageSrc, hiResImageSrc;
+        var imageSrc, hiResImageSrc, srcSet;
 
         if (typeof element === 'string') {
           domElement = document.querySelector(element);
@@ -706,7 +709,8 @@
 
         if (domElement.tagName === 'IMG') {
           imageSrc = domElement.src;
-          hiResImageSrc = domElement.getAttribute('high-res-src') || domElement.getAttribute('data-high-res-src'); // wrap the image with iv-container div
+          hiResImageSrc = domElement.getAttribute('high-res-src') || domElement.getAttribute('data-high-res-src');
+          srcSet = domElement.getAttribute('srcset') || domElement.getAttribute('data-srcset'); // wrap the image with iv-container div
 
           container = wrap(domElement, {
             className: 'iv-container iv-image-mode',
@@ -724,13 +728,15 @@
         } else {
           imageSrc = domElement.getAttribute('src') || domElement.getAttribute('data-src');
           hiResImageSrc = domElement.getAttribute('high-res-src') || domElement.getAttribute('data-high-res-src');
+          srcSet = domElement.getAttribute('srcset') || domElement.getAttribute('data-srcset');
         }
 
         return {
           container: container,
           domElement: domElement,
           imageSrc: imageSrc,
-          hiResImageSrc: hiResImageSrc
+          hiResImageSrc: hiResImageSrc,
+          srcSet: srcSet
         };
       }
     }, {
@@ -1061,9 +1067,7 @@
       value: function _scrollZoom() {
         var _this7 = this;
 
-        console.log("Scroll zoom");
         /* Add zoom interaction in mouse wheel */
-
         var _options = this._options;
         var _this$_elements4 = this._elements,
             container = _this$_elements4.container,
@@ -1093,12 +1097,6 @@
           } else {
             changedDelta = 0;
           }
-          /*if (!(newZoomValue >= 100 && newZoomValue <= _options.maxZoom)) {
-               changedDelta += Math.abs(delta);
-           } else {
-            changedDelta = 0;
-          }*/
-
 
           e.preventDefault();
           if (changedDelta > MOUSE_WHEEL_COUNT) return;
@@ -1168,7 +1166,8 @@
         var _images = this._images,
             _elements = this._elements;
         var imageSrc = _images.imageSrc,
-            hiResImageSrc = _images.hiResImageSrc;
+            hiResImageSrc = _images.hiResImageSrc,
+            srcSet = _images.srcSet;
         var container = _elements.container,
             snapImageWrap = _elements.snapImageWrap,
             imageWrap = _elements.imageWrap;
@@ -1188,6 +1187,7 @@
           tagName: 'img',
           className: 'iv-image iv-small-image',
           src: imageSrc,
+          srcset: srcSet,
           parent: imageWrap
         });
         this._state.loaded = false; // store image reference in _elements
@@ -1333,10 +1333,11 @@
       }
     }, {
       key: "load",
-      value: function load(imageSrc, hiResImageSrc) {
+      value: function load(imageSrc, hiResImageSrc, srcSet) {
         this._images = {
           imageSrc: imageSrc,
-          hiResImageSrc: hiResImageSrc
+          hiResImageSrc: hiResImageSrc,
+          srcSet: srcSet
         };
 
         this._loadImages();

@@ -23,6 +23,7 @@ export function createElement (options) {
   if (options.html) elem.innerHTML = options.html;
   if (options.className) elem.className = options.className;
   if (options.src) elem.src = options.src;
+  if (options.srcset) elem.srcset = options.srcset;
   if (options.style) elem.style.cssText = options.style;
   if (options.child) elem.appendChild(options.child);
 
