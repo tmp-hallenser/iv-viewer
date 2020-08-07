@@ -35,7 +35,7 @@ const imageViewHtml = `
 
 class ImageViewer {
   constructor (element, options = {}) {
-    const { container, domElement, imageSrc, hiResImageSrc, srcSet, attributes } = this._findContainerAndImageSrc(element, options);
+    const { container, domElement, imageSrc, hiResImageSrc, preloadedImageSrc, srcSet, attributes } = this._findContainerAndImageSrc(element, options);
 
     // containers for elements
     this._elements = {
@@ -69,6 +69,7 @@ class ImageViewer {
     this._images = {
       imageSrc,
       hiResImageSrc,
+      preloadedImageSrc,
       srcSet,
       attributes,
     };
@@ -85,7 +86,7 @@ class ImageViewer {
 
   _findContainerAndImageSrc (element) {
     let domElement = element;
-    let imageSrc, hiResImageSrc, srcSet, attributes;
+    let imageSrc, hiResImageSrc, preloadedImageSrc, srcSet, attributes;
 
     if (typeof element === 'string') {
       domElement = document.querySelector(element);
@@ -102,7 +103,8 @@ class ImageViewer {
       imageSrc = domElement.src;
       hiResImageSrc = domElement.getAttribute('high-res-src') || domElement.getAttribute('data-high-res-src');
       srcSet = domElement.getAttribute('srcset') || domElement.getAttribute('data-srcset');
-      attributes = [].filter.call(domElement.attributes, function(at) { return /^data-(?!high-res-src|srcset)/.test(at.name); });
+      preloadedImageSrc = domElement.getAttribute('preloaded-image-src') || domElement.getAttribute('data-preloaded-image-src');
+      attributes = [].filter.call(domElement.attributes, function(at) { return /^data-(?!high-res-src|srcset|preloaded-image-src)/.test(at.name); });
 
       // wrap the image with iv-container div
       container = wrap(domElement, { className: 'iv-container iv-image-mode', style: { display: 'inline-block', overflow: 'hidden' } });
@@ -117,7 +119,8 @@ class ImageViewer {
       imageSrc = domElement.getAttribute('src') || domElement.getAttribute('data-src');
       hiResImageSrc = domElement.getAttribute('high-res-src') || domElement.getAttribute('data-high-res-src');
       srcSet = domElement.getAttribute('srcset') || domElement.getAttribute('data-srcset');
-      attributes = [].filter.call(domElement.attributes, function(at) { return /^data-(?!high-res-src|srcset)/.test(at.name); });
+      preloadedImageSrc = domElement.getAttribute('preloaded-image-src') || domElement.getAttribute('data-preloaded-image-src');
+      attributes = [].filter.call(domElement.attributes, function(at) { return /^data-(?!high-res-src|srcset|preloaded-image-src)/.test(at.name); });
 
     }
 
@@ -126,6 +129,7 @@ class ImageViewer {
       domElement,
       imageSrc,
       hiResImageSrc,
+      preloadedImageSrc,
       srcSet,
       attributes,
     };
@@ -557,7 +561,7 @@ class ImageViewer {
 
   _loadImages () {
     const { _images, _elements } = this;
-    const { imageSrc, hiResImageSrc, srcSet, attributes } = _images;
+    const { imageSrc, hiResImageSrc, preloadedImageSrc, srcSet, attributes } = _images;
     const { container, snapImageWrap, imageWrap } = _elements;
 
     const ivLoader = container.querySelector('.iv-loader');
@@ -579,6 +583,7 @@ class ImageViewer {
       tagName: 'img',
       className: 'iv-image iv-small-image',
       src: imageSrc,
+      preloadedimagesrc: preloadedImageSrc,
       srcset: srcSet,
       parent: imageWrap,
       attributes: attributes,
@@ -873,10 +878,11 @@ class ImageViewer {
     this._calculateDimensions();
     this.resetZoom();
   }
-  load (imageSrc, hiResImageSrc, srcSet) {
+  load (imageSrc, hiResImageSrc, preloadedImageSrc, srcSet) {
     this._images = {
       imageSrc,
       hiResImageSrc,
+      preloadedImageSrc,
       srcSet,
     };
 

@@ -275,6 +275,7 @@
     if (options.srcset) elem.srcset = options.srcset;
     if (options.style) elem.style.cssText = options.style;
     if (options.child) elem.appendChild(options.child);
+    if (options.preloadedimagesrc) elem.style.backgroundImage = "url('" + options.preloadedimagesrc + "')";
 
     if (options.attributes) {
       options.attributes.forEach(function (item, index, object) {
@@ -668,6 +669,7 @@
           domElement = _this$_findContainerA.domElement,
           imageSrc = _this$_findContainerA.imageSrc,
           hiResImageSrc = _this$_findContainerA.hiResImageSrc,
+          preloadedImageSrc = _this$_findContainerA.preloadedImageSrc,
           srcSet = _this$_findContainerA.srcSet,
           attributes = _this$_findContainerA.attributes; // containers for elements
 
@@ -691,6 +693,7 @@
       this._images = {
         imageSrc: imageSrc,
         hiResImageSrc: hiResImageSrc,
+        preloadedImageSrc: preloadedImageSrc,
         srcSet: srcSet,
         attributes: attributes
       };
@@ -709,7 +712,7 @@
       key: "_findContainerAndImageSrc",
       value: function _findContainerAndImageSrc(element) {
         var domElement = element;
-        var imageSrc, hiResImageSrc, srcSet, attributes;
+        var imageSrc, hiResImageSrc, preloadedImageSrc, srcSet, attributes;
 
         if (typeof element === 'string') {
           domElement = document.querySelector(element);
@@ -726,8 +729,9 @@
           imageSrc = domElement.src;
           hiResImageSrc = domElement.getAttribute('high-res-src') || domElement.getAttribute('data-high-res-src');
           srcSet = domElement.getAttribute('srcset') || domElement.getAttribute('data-srcset');
+          preloadedImageSrc = domElement.getAttribute('preloaded-image-src') || domElement.getAttribute('data-preloaded-image-src');
           attributes = [].filter.call(domElement.attributes, function (at) {
-            return /^data-(?!high-res-src|srcset)/.test(at.name);
+            return /^data-(?!high-res-src|srcset|preloaded-image-src)/.test(at.name);
           }); // wrap the image with iv-container div
 
           container = wrap(domElement, {
@@ -747,8 +751,9 @@
           imageSrc = domElement.getAttribute('src') || domElement.getAttribute('data-src');
           hiResImageSrc = domElement.getAttribute('high-res-src') || domElement.getAttribute('data-high-res-src');
           srcSet = domElement.getAttribute('srcset') || domElement.getAttribute('data-srcset');
+          preloadedImageSrc = domElement.getAttribute('preloaded-image-src') || domElement.getAttribute('data-preloaded-image-src');
           attributes = [].filter.call(domElement.attributes, function (at) {
-            return /^data-(?!high-res-src|srcset)/.test(at.name);
+            return /^data-(?!high-res-src|srcset|preloaded-image-src)/.test(at.name);
           });
         }
 
@@ -757,6 +762,7 @@
           domElement: domElement,
           imageSrc: imageSrc,
           hiResImageSrc: hiResImageSrc,
+          preloadedImageSrc: preloadedImageSrc,
           srcSet: srcSet,
           attributes: attributes
         };
@@ -1189,6 +1195,7 @@
             _elements = this._elements;
         var imageSrc = _images.imageSrc,
             hiResImageSrc = _images.hiResImageSrc,
+            preloadedImageSrc = _images.preloadedImageSrc,
             srcSet = _images.srcSet,
             attributes = _images.attributes;
         var container = _elements.container,
@@ -1210,6 +1217,7 @@
           tagName: 'img',
           className: 'iv-image iv-small-image',
           src: imageSrc,
+          preloadedimagesrc: preloadedImageSrc,
           srcset: srcSet,
           parent: imageWrap,
           attributes: attributes
@@ -1359,10 +1367,11 @@
       }
     }, {
       key: "load",
-      value: function load(imageSrc, hiResImageSrc, srcSet) {
+      value: function load(imageSrc, hiResImageSrc, preloadedImageSrc, srcSet) {
         this._images = {
           imageSrc: imageSrc,
           hiResImageSrc: hiResImageSrc,
+          preloadedImageSrc: preloadedImageSrc,
           srcSet: srcSet
         };
 
