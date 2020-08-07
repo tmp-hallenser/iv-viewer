@@ -26,6 +26,11 @@ export function createElement (options) {
   if (options.srcset) elem.srcset = options.srcset;
   if (options.style) elem.style.cssText = options.style;
   if (options.child) elem.appendChild(options.child);
+  if (options.attributes) {
+    options.attributes.forEach(function(item, index, object) {
+      elem.setAttribute(item.name, item.value);
+    });
+  }
 
   // Insert before
   if (options.insertBefore) {

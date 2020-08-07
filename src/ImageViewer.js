@@ -35,7 +35,7 @@ const imageViewHtml = `
 
 class ImageViewer {
   constructor (element, options = {}) {
-    const { container, domElement, imageSrc, hiResImageSrc, srcSet } = this._findContainerAndImageSrc(element, options);
+    const { container, domElement, imageSrc, hiResImageSrc, srcSet, attributes } = this._findContainerAndImageSrc(element, options);
 
     // containers for elements
     this._elements = {
@@ -63,12 +63,14 @@ class ImageViewer {
     // maintain current state
     this._state = {
       zoomValue: this._options.zoomValue,
+      hiResImageLoadTriggered: false,
     };
 
     this._images = {
       imageSrc,
       hiResImageSrc,
       srcSet,
+      attributes,
     };
 
     this._init();
@@ -83,7 +85,7 @@ class ImageViewer {
 
   _findContainerAndImageSrc (element) {
     let domElement = element;
-    let imageSrc, hiResImageSrc, srcSet;
+    let imageSrc, hiResImageSrc, srcSet, attributes;
 
     if (typeof element === 'string') {
       domElement = document.querySelector(element);
@@ -100,6 +102,7 @@ class ImageViewer {
       imageSrc = domElement.src;
       hiResImageSrc = domElement.getAttribute('high-res-src') || domElement.getAttribute('data-high-res-src');
       srcSet = domElement.getAttribute('srcset') || domElement.getAttribute('data-srcset');
+      attributes = [].filter.call(domElement.attributes, function(at) { return /^data-(?!high-res-src|srcset)/.test(at.name); });
 
       // wrap the image with iv-container div
       container = wrap(domElement, { className: 'iv-container iv-image-mode', style: { display: 'inline-block', overflow: 'hidden' } });
@@ -114,6 +117,8 @@ class ImageViewer {
       imageSrc = domElement.getAttribute('src') || domElement.getAttribute('data-src');
       hiResImageSrc = domElement.getAttribute('high-res-src') || domElement.getAttribute('data-high-res-src');
       srcSet = domElement.getAttribute('srcset') || domElement.getAttribute('data-srcset');
+      attributes = [].filter.call(domElement.attributes, function(at) { return /^data-(?!high-res-src|srcset)/.test(at.name); });
+
     }
 
     return {
@@ -122,6 +127,7 @@ class ImageViewer {
       imageSrc,
       hiResImageSrc,
       srcSet,
+      attributes,
     };
   }
 
@@ -551,7 +557,7 @@ class ImageViewer {
 
   _loadImages () {
     const { _images, _elements } = this;
-    const { imageSrc, hiResImageSrc, srcSet } = _images;
+    const { imageSrc, hiResImageSrc, srcSet, attributes } = _images;
     const { container, snapImageWrap, imageWrap } = _elements;
 
     const ivLoader = container.querySelector('.iv-loader');
@@ -575,6 +581,7 @@ class ImageViewer {
       src: imageSrc,
       srcset: srcSet,
       parent: imageWrap,
+      attributes: attributes,
     });
 
     this._state.loaded = false;
@@ -599,7 +606,7 @@ class ImageViewer {
       css(image, { visibility: 'visible' });
 
       // load high resolution image if provided
-      if (hiResImageSrc) {
+      if (hiResImageSrc && this._options.loadHiResImageOnLoad) {
         this._loadHighResImage(hiResImageSrc);
       }
 
@@ -620,6 +627,8 @@ class ImageViewer {
     }
   }
   _loadHighResImage (hiResImageSrc) {
+
+    this._state.hiResImageLoadTriggered = true;
     const { imageWrap, container } = this._elements;
 
     const lowResImg = this._elements.image;
@@ -630,6 +639,7 @@ class ImageViewer {
       src: hiResImageSrc,
       parent: imageWrap,
       style: lowResImg.style.cssText,
+      attributes: this._images.attributes,
     });
 
     // add all the style attributes from lowResImg to highResImg
@@ -727,6 +737,10 @@ class ImageViewer {
     const { zoomValue: curPerc, imageDim, containerDim, zoomSliderLength } = _state;
     const { image, zoomHandle } = _elements;
     const { maxZoom } = _options;
+
+    if(!this._state.hiResImageLoadTriggered && perc>this._options.zoomValue) {
+      this._loadHighResImage(this._images.hiResImageSrc);
+    }
 
     perc = Math.round(Math.max(100, perc));
     perc = Math.min(maxZoom, perc);
@@ -909,6 +923,7 @@ ImageViewer.defaults = {
   maxZoom: 500,
   refreshOnResize: true,
   zoomOnMouseWheel: true,
+  loadHiResImageOnLoad: true,
 };
 
 export default ImageViewer;

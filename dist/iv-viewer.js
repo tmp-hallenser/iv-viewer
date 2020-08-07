@@ -274,7 +274,14 @@
     if (options.src) elem.src = options.src;
     if (options.srcset) elem.srcset = options.srcset;
     if (options.style) elem.style.cssText = options.style;
-    if (options.child) elem.appendChild(options.child); // Insert before
+    if (options.child) elem.appendChild(options.child);
+
+    if (options.attributes) {
+      options.attributes.forEach(function (item, index, object) {
+        elem.setAttribute(item.name, item.value);
+      });
+    } // Insert before
+
 
     if (options.insertBefore) {
       options.parent.insertBefore(elem, options.insertBefore); // Standard append
@@ -516,6 +523,11 @@
         var image = _elements.image,
             zoomHandle = _elements.zoomHandle;
         var maxZoom = _options.maxZoom;
+
+        if (!_this._state.hiResImageLoadTriggered && perc > _this._options.zoomValue) {
+          _this._loadHighResImage(_this._images.hiResImageSrc);
+        }
+
         perc = Math.round(Math.max(100, perc));
         perc = Math.min(maxZoom, perc);
         point = point || {
@@ -656,7 +668,8 @@
           domElement = _this$_findContainerA.domElement,
           imageSrc = _this$_findContainerA.imageSrc,
           hiResImageSrc = _this$_findContainerA.hiResImageSrc,
-          srcSet = _this$_findContainerA.srcSet; // containers for elements
+          srcSet = _this$_findContainerA.srcSet,
+          attributes = _this$_findContainerA.attributes; // containers for elements
 
 
       this._elements = {
@@ -672,12 +685,14 @@
       this._sliders = {}; // maintain current state
 
       this._state = {
-        zoomValue: this._options.zoomValue
+        zoomValue: this._options.zoomValue,
+        hiResImageLoadTriggered: false
       };
       this._images = {
         imageSrc: imageSrc,
         hiResImageSrc: hiResImageSrc,
-        srcSet: srcSet
+        srcSet: srcSet,
+        attributes: attributes
       };
 
       this._init();
@@ -694,7 +709,7 @@
       key: "_findContainerAndImageSrc",
       value: function _findContainerAndImageSrc(element) {
         var domElement = element;
-        var imageSrc, hiResImageSrc, srcSet;
+        var imageSrc, hiResImageSrc, srcSet, attributes;
 
         if (typeof element === 'string') {
           domElement = document.querySelector(element);
@@ -710,7 +725,10 @@
         if (domElement.tagName === 'IMG') {
           imageSrc = domElement.src;
           hiResImageSrc = domElement.getAttribute('high-res-src') || domElement.getAttribute('data-high-res-src');
-          srcSet = domElement.getAttribute('srcset') || domElement.getAttribute('data-srcset'); // wrap the image with iv-container div
+          srcSet = domElement.getAttribute('srcset') || domElement.getAttribute('data-srcset');
+          attributes = [].filter.call(domElement.attributes, function (at) {
+            return /^data-(?!high-res-src|srcset)/.test(at.name);
+          }); // wrap the image with iv-container div
 
           container = wrap(domElement, {
             className: 'iv-container iv-image-mode',
@@ -729,6 +747,9 @@
           imageSrc = domElement.getAttribute('src') || domElement.getAttribute('data-src');
           hiResImageSrc = domElement.getAttribute('high-res-src') || domElement.getAttribute('data-high-res-src');
           srcSet = domElement.getAttribute('srcset') || domElement.getAttribute('data-srcset');
+          attributes = [].filter.call(domElement.attributes, function (at) {
+            return /^data-(?!high-res-src|srcset)/.test(at.name);
+          });
         }
 
         return {
@@ -736,7 +757,8 @@
           domElement: domElement,
           imageSrc: imageSrc,
           hiResImageSrc: hiResImageSrc,
-          srcSet: srcSet
+          srcSet: srcSet,
+          attributes: attributes
         };
       }
     }, {
@@ -1167,7 +1189,8 @@
             _elements = this._elements;
         var imageSrc = _images.imageSrc,
             hiResImageSrc = _images.hiResImageSrc,
-            srcSet = _images.srcSet;
+            srcSet = _images.srcSet,
+            attributes = _images.attributes;
         var container = _elements.container,
             snapImageWrap = _elements.snapImageWrap,
             imageWrap = _elements.imageWrap;
@@ -1188,7 +1211,8 @@
           className: 'iv-image iv-small-image',
           src: imageSrc,
           srcset: srcSet,
-          parent: imageWrap
+          parent: imageWrap,
+          attributes: attributes
         });
         this._state.loaded = false; // store image reference in _elements
 
@@ -1214,7 +1238,7 @@
             visibility: 'visible'
           }); // load high resolution image if provided
 
-          if (hiResImageSrc) {
+          if (hiResImageSrc && _this9._options.loadHiResImageOnLoad) {
             _this9._loadHighResImage(hiResImageSrc);
           } // set loaded flag to true
 
@@ -1238,6 +1262,7 @@
       value: function _loadHighResImage(hiResImageSrc) {
         var _this10 = this;
 
+        this._state.hiResImageLoadTriggered = true;
         var _this$_elements5 = this._elements,
             imageWrap = _this$_elements5.imageWrap,
             container = _this$_elements5.container;
@@ -1247,7 +1272,8 @@
           className: 'iv-image iv-large-image',
           src: hiResImageSrc,
           parent: imageWrap,
-          style: lowResImg.style.cssText
+          style: lowResImg.style.cssText,
+          attributes: this._images.attributes
         }); // add all the style attributes from lowResImg to highResImg
 
         hiResImage.style.cssText = lowResImg.style.cssText;
@@ -1392,7 +1418,8 @@
     snapView: true,
     maxZoom: 500,
     refreshOnResize: true,
-    zoomOnMouseWheel: true
+    zoomOnMouseWheel: true,
+    loadHiResImageOnLoad: true
   };
 
   var fullScreenHtml = "\n  <div class=\"iv-fullscreen-container\"></div>\n  <div class=\"iv-fullscreen-close\"></div>\n";
