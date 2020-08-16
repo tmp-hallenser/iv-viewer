@@ -35,7 +35,7 @@ const imageViewHtml = `
 
 class ImageViewer {
   constructor (element, options = {}) {
-    const { container, domElement, imageSrc, hiResImageSrc, preloadedImageSrc, srcSet, attributes } = this._findContainerAndImageSrc(element, options);
+    const { container, domElement, imageSrc, hiResImageSrc, lowResImageSrc, srcSet, videoSrc, attributes } = this._findContainerAndImageSrc(element, options);
 
     // containers for elements
     this._elements = {
@@ -69,8 +69,9 @@ class ImageViewer {
     this._images = {
       imageSrc,
       hiResImageSrc,
-      preloadedImageSrc,
+      lowResImageSrc,
       srcSet,
+      videoSrc,
       attributes,
     };
 
@@ -86,7 +87,7 @@ class ImageViewer {
 
   _findContainerAndImageSrc (element) {
     let domElement = element;
-    let imageSrc, hiResImageSrc, preloadedImageSrc, srcSet, attributes;
+    let imageSrc, hiResImageSrc, lowResImageSrc, srcSet, videoSrc, attributes;
 
     if (typeof element === 'string') {
       domElement = document.querySelector(element);
@@ -103,8 +104,9 @@ class ImageViewer {
       imageSrc = domElement.src;
       hiResImageSrc = domElement.getAttribute('high-res-src') || domElement.getAttribute('data-high-res-src');
       srcSet = domElement.getAttribute('srcset') || domElement.getAttribute('data-srcset');
-      preloadedImageSrc = domElement.getAttribute('preloaded-image-src') || domElement.getAttribute('data-preloaded-image-src');
-      attributes = [].filter.call(domElement.attributes, function(at) { return /^data-(?!high-res-src|srcset|preloaded-image-src)/.test(at.name); });
+      lowResImageSrc = domElement.getAttribute('preloaded-image-src') || domElement.getAttribute('data-preloaded-image-src');
+      videoSrc = domElement.getAttribute('video-src') || domElement.getAttribute('data-video-src');
+      attributes = [].filter.call(domElement.attributes, function(at) { return /^data-(?!high-res-src|srcset|preloaded-image-src|video-src)/.test(at.name); });
 
       // wrap the image with iv-container div
       container = wrap(domElement, { className: 'iv-container iv-image-mode', style: { display: 'inline-block', overflow: 'hidden' } });
@@ -119,7 +121,8 @@ class ImageViewer {
       imageSrc = domElement.getAttribute('src') || domElement.getAttribute('data-src');
       hiResImageSrc = domElement.getAttribute('high-res-src') || domElement.getAttribute('data-high-res-src');
       srcSet = domElement.getAttribute('srcset') || domElement.getAttribute('data-srcset');
-      preloadedImageSrc = domElement.getAttribute('preloaded-image-src') || domElement.getAttribute('data-preloaded-image-src');
+      lowResImageSrc = domElement.getAttribute('preloaded-image-src') || domElement.getAttribute('data-preloaded-image-src');
+      videoSrc = domElement.getAttribute('video-src') || domElement.getAttribute('data-video-src');
       attributes = [].filter.call(domElement.attributes, function(at) { return /^data-(?!high-res-src|srcset|preloaded-image-src)/.test(at.name); });
 
     }
@@ -129,8 +132,9 @@ class ImageViewer {
       domElement,
       imageSrc,
       hiResImageSrc,
-      preloadedImageSrc,
+      lowResImageSrc,
       srcSet,
+      videoSrc,
       attributes,
     };
   }
@@ -302,7 +306,7 @@ class ImageViewer {
       },
       onMove: (e, position) => {
         const { snapHandleDim, snapImageDim } = this._state;
-        const { image } = this._elements;
+        const { image, video } = this._elements;
 
         const imageCurrentDim = this._getImageCurrentDim();
 
@@ -327,6 +331,14 @@ class ImageViewer {
           left: `${imgLeft}px`,
           top: `${imgTop}px`,
         });
+
+        if (video) {
+          css(video, {
+            left: `${imgLeft}px`,
+            top: `${imgTop}px`,
+          });
+        }
+
       },
     });
 
@@ -385,12 +397,35 @@ class ImageViewer {
   }
 
   _snapViewEvents () {
-    const { imageWrap, snapView } = this._elements;
+    const { image, imageWrap, snapView, video } = this._elements;
 
     // show snapView on mouse move
     this._events.snapViewOnMouseMove = assignEvent(imageWrap, ['touchmove', 'mousemove'], () => {
+
+      const { image, video } = this._elements;
+
       this.showSnapView();
+      if (video) {
+        video.muted = false;
+      }
+
     });
+
+    // start video on mouse enter
+    this._events.mouseEnterImageWrap = assignEvent(imageWrap, ['mouseenter', 'touchstart'], () => {
+
+      this.playVideo();
+
+    });
+
+
+    // pause video on mouseleave
+    this._events.mouseLeaveImageWrap = assignEvent(imageWrap, ['mouseleave', 'touchend'], () => {
+
+      this.pauseVideo();
+
+    });
+
 
     // keep showing snapView if on hover over it without any timeout
     this._events.mouseEnterSnapView = assignEvent(snapView, ['mouseenter', 'touchstart'], () => {
@@ -561,7 +596,7 @@ class ImageViewer {
 
   _loadImages () {
     const { _images, _elements } = this;
-    const { imageSrc, hiResImageSrc, preloadedImageSrc, srcSet, attributes } = _images;
+    const { imageSrc, hiResImageSrc, lowResImageSrc, srcSet, videoSrc, attributes } = _images;
     const { container, snapImageWrap, imageWrap } = _elements;
 
     const ivLoader = container.querySelector('.iv-loader');
@@ -573,7 +608,7 @@ class ImageViewer {
     const snapImage = createElement({
       tagName: 'img',
       className: 'iv-snap-image',
-      src: imageSrc,
+      src: (lowResImageSrc) ? lowResImageSrc : imageSrc, // use low res if available
       insertBefore: snapImageWrap.firstChild,
       parent: snapImageWrap,
     });
@@ -582,8 +617,7 @@ class ImageViewer {
     const image = createElement({
       tagName: 'img',
       className: 'iv-image iv-small-image',
-      src: imageSrc,
-      preloadedimagesrc: preloadedImageSrc,
+      src: (lowResImageSrc) ? lowResImageSrc : imageSrc, // start with low res if available,
       srcset: srcSet,
       parent: imageWrap,
       attributes: attributes,
@@ -594,11 +628,19 @@ class ImageViewer {
     // store image reference in _elements
     this._elements.image = image;
     this._elements.snapImage = snapImage;
+    this._elements.video = null;
 
     css(ivLoader, { display: 'block' });
 
     // keep visibility hidden until image is loaded
     css(image, { visibility: 'hidden' });
+
+    if (videoSrc) {
+      if (this._options.livePhotoStatusCallBack !== null) {
+        this._options.livePhotoStatusCallBack('Loading');
+      }
+    }
+
 
     // hide snap view if open
     this.hideSnapView();
@@ -610,10 +652,56 @@ class ImageViewer {
       // show the image
       css(image, { visibility: 'visible' });
 
-      // load high resolution image if provided
-      if (hiResImageSrc && this._options.loadHiResImageOnLoad) {
-        this._loadHighResImage(hiResImageSrc);
+      if (lowResImageSrc) {
+        // we have started with the low res image
+
+        const lowResImg = this._elements.image;
+        // add image
+        const image = createElement({
+          tagName: 'img',
+          className: 'iv-image iv-small-image',
+          src: imageSrc, // now it's the normal resolution
+          srcset: srcSet,
+          parent: imageWrap,
+          attributes: attributes,
+        });
+
+        // hide the image until it's loaded
+        css(image, { visibility: 'hidden' });
+
+        const onMediumResImageLoad = () => {
+          // add all the style attributes from lowResImg to highResImg
+          image.style.cssText = lowResImg.style.cssText;
+
+          // remove the low size image and set this image as default image
+          remove(lowResImg);
+          this._elements.image = image;
+
+          if (videoSrc) {
+            this._loadVideo(videoSrc);
+          }
+          // load high resolution image if provided
+          if (hiResImageSrc && this._options.loadHiResImageOnLoad) {
+            this._loadHighResImage(hiResImageSrc);
+          }
+
+        };
+
+        if (imageLoaded(image)) {
+          // onHighResImageLoad(); //TODO
+        } else {
+          this._events.mediumResImageLoad = assignEvent(image, 'load', onMediumResImageLoad);
+        }
+
+
+      } else {
+        // load high resolution image if provided
+        if (hiResImageSrc && this._options.loadHiResImageOnLoad) {
+          this._loadHighResImage(hiResImageSrc);
+        }
       }
+
+
 
       // set loaded flag to true
       this._state.loaded = true;
@@ -631,7 +719,10 @@ class ImageViewer {
       this._events.imageLoad = assignEvent(image, 'load', onImageLoad);
     }
   }
+
   _loadHighResImage (hiResImageSrc) {
+
+    if (!hiResImageSrc) return;
 
     this._state.hiResImageLoadTriggered = true;
     const { imageWrap, container } = this._elements;
@@ -665,8 +756,89 @@ class ImageViewer {
       this._events.hiResImageLoad = assignEvent(hiResImage, 'load', onHighResImageLoad);
     }
   }
+
+  _loadVideo (videoSrc) {
+
+    if (!videoSrc) return;
+
+    const { imageWrap, container, image, attributes } = this._elements;
+
+
+    // add video
+    const video = createElement({
+      tagName: 'video',
+      className: 'iv-image iv-small-image',
+      src: videoSrc,
+      parent: imageWrap,
+      attributes: attributes,
+      insertBefore: image,
+    });
+
+    // add all the style attributes from lowResImg to highResImg
+    video.style.cssText = image.style.cssText;
+
+    css(video, { visibility: 'hidden' });
+
+    this._elements.video = video;
+
+    const onVideoLoad = () => {
+
+      video.style.cssText = image.style.cssText;
+      css(video, { visibility: 'visible' });
+
+    };
+
+    const onVideoProgress = () => {
+
+      var loadedPercentage = video.buffered.end(0) / video.duration;
+      if (this._options.livePhotoStatusCallBack !== null) {
+        this._options.livePhotoStatusCallBack('Loading');
+      }
+
+    };
+
+    const onVideoPlay = () => {
+      if (this._options.livePhotoStatusCallBack !== null) {
+        this._options.livePhotoStatusCallBack('Play');
+      }
+    };
+
+    const onVideoPlaying = () => {
+      if (this._options.livePhotoStatusCallBack !== null) {
+        this._options.livePhotoStatusCallBack('Play');
+      }
+    };
+
+    const onVideoPause = () => {
+      if (this._options.livePhotoStatusCallBack !== null) {
+        this._options.livePhotoStatusCallBack('Pause');
+      }
+    };
+    const onVideoCanPlay = () => {
+      if (this._options.livePhotoStatusCallBack !== null) {
+        this._options.livePhotoStatusCallBack('CanPlay');
+      }
+    };
+    const onVideoWaiting = () => {
+      if (this._options.livePhotoStatusCallBack !== null) {
+        this._options.livePhotoStatusCallBack('Loading');
+      }
+    };
+    if (imageLoaded(video)) {
+      onHighResImageLoad();
+    } else {
+      this._events.videoLoad = assignEvent(video, 'load', onVideoLoad);
+      this._events.videoProgress = assignEvent(video, 'progress', onVideoProgress);
+      this._events.videoLoad = assignEvent(video, 'play', onVideoPlay);
+      this._events.videoLoad = assignEvent(video, 'playing', onVideoPlay);
+      this._events.videoProgress = assignEvent(video, 'pause', onVideoPause);
+      this._events.videoProgress = assignEvent(video, 'canplay', onVideoCanPlay);
+      this._events.videoProgress = assignEvent(video, 'waiting', onVideoWaiting);
+    }
+  }
+
   _calculateDimensions () {
-    const { image, container, snapView, snapImage, zoomHandle } = this._elements;
+    const { image, container, snapView, snapImage, zoomHandle, video } = this._elements;
 
     // calculate content width of image and snap image
     const imageWidth = parseInt(css(image, 'width'), 10);
@@ -711,6 +883,18 @@ class ImageViewer {
       maxHeight: 'none',
     });
 
+    if (video) {
+      css(video, {
+        width: `${imgWidth}px`,
+        height: `${imgHeight}px`,
+        left: `${(contWidth - imgWidth) / 2}px`,
+        top: `${(contHeight - imgHeight) / 2}px`,
+        maxWidth: 'none',
+        maxHeight: 'none',
+      });
+    }
+
+
     // set the snap Image dimension
     const snapWidth = imgWidth > imgHeight ? snapViewWidth : imgWidth * snapViewHeight / imgHeight;
     const snapHeight = imgHeight > imgWidth ? snapViewHeight : imgHeight * snapViewWidth / imgWidth;
@@ -740,7 +924,7 @@ class ImageViewer {
   zoom = (perc, point) => {
     const { _options, _elements, _state } = this;
     const { zoomValue: curPerc, imageDim, containerDim, zoomSliderLength } = _state;
-    const { image, zoomHandle } = _elements;
+    const { image, zoomHandle, video } = _elements;
     const { maxZoom } = _options;
 
     if(!this._state.hiResImageLoadTriggered && perc>this._options.zoomValue) {
@@ -803,6 +987,15 @@ class ImageViewer {
         left: `${newLeft}px`,
         top: `${newTop}px`,
       });
+
+      if (video) {
+        css(video, {
+          height: `${imgHeight}px`,
+          width: `${imgWidth}px`,
+          left: `${newLeft}px`,
+          top: `${newTop}px`,
+        });
+      }
 
       this._state.zoomValue = tickZoom;
 
@@ -878,12 +1071,13 @@ class ImageViewer {
     this._calculateDimensions();
     this.resetZoom();
   }
-  load (imageSrc, hiResImageSrc, preloadedImageSrc, srcSet) {
+  load (imageSrc, hiResImageSrc, lowResImageSrc, srcSet, videoSrc) {
     this._images = {
       imageSrc,
       hiResImageSrc,
-      preloadedImageSrc,
+      lowResImageSrc,
       srcSet,
+      videoSrc,
     };
 
     this._loadImages();
@@ -921,6 +1115,87 @@ class ImageViewer {
     // remove imageViewer reference from dom element
     domElement._imageViewer = null;
   }
+
+  playPauseVideo (unmute = false) {
+
+    const { image, video } = this._elements;
+
+    if(!(video)) return false;
+
+    if(video.paused) {
+      return this.playVideo(unmute);
+    } else {
+      return this.pauseVideo();
+    }
+
+  }
+
+  playVideo (unmute = false) {
+
+    const { image, video } = this._elements;
+    const HAVE_ENOUGH_DATA = 4;
+
+    if(!(video)) return false;
+
+    if(video.readyState < 2) return false;
+
+    video.muted = !(unmute);
+    video.loop = true;
+
+    var playPromise = video.play();
+
+    if (playPromise !== undefined) {
+        playPromise.then(_ => {
+          // Automatic playback started!
+          // Show playing UI.
+          css(image, { visibility: 'hidden' });
+          css(video, { visibility: 'visible' });
+          return true;
+        })
+        .catch(error => {
+          // Auto-play was prevented
+          // Show paused UI.
+          //console.log("not playing");
+          return false;
+        });
+    }
+
+    return true;
+
+  }
+
+  pauseVideo() {
+
+    const { image, video } = this._elements;
+
+    if(!(video)) return false;
+
+    css(video, { visibility: 'hidden' });
+    css(image, { visibility: 'visible' });
+    video.pause();
+
+    //console.log("pause");
+    return true;
+  }
+
+  unmuteVideo() {
+
+    const { image, video } = this._elements;
+
+    if(!(video)) return false;
+
+    video.muted = false;
+
+    return true;
+
+  }
+
+  isZoomed() {
+
+    return (zoomValue==100);
+
+  }
+
 }
 
 ImageViewer.defaults = {
@@ -929,7 +1204,8 @@ ImageViewer.defaults = {
   maxZoom: 500,
   refreshOnResize: true,
   zoomOnMouseWheel: true,
-  loadHiResImageOnLoad: true,
+  loadHiResImageOnLoad: false,
+  livePhotoStatusCallBack: null,
 };
 
 export default ImageViewer;
