@@ -272,8 +272,17 @@
     if (options.html) elem.innerHTML = options.html;
     if (options.className) elem.className = options.className;
     if (options.src) elem.src = options.src;
+    if (options.srcset) elem.srcset = options.srcset;
     if (options.style) elem.style.cssText = options.style;
-    if (options.child) elem.appendChild(options.child); // Insert before
+    if (options.child) elem.appendChild(options.child);
+    if (options.preloadedimagesrc) elem.style.backgroundImage = "url('" + options.preloadedimagesrc + "')";
+
+    if (options.attributes) {
+      options.attributes.forEach(function (item, index, object) {
+        elem.setAttribute(item.name, item.value);
+      });
+    } // Insert before
+
 
     if (options.insertBefore) {
       options.parent.insertBefore(elem, options.insertBefore); // Standard append
@@ -513,8 +522,14 @@
             containerDim = _state.containerDim,
             zoomSliderLength = _state.zoomSliderLength;
         var image = _elements.image,
-            zoomHandle = _elements.zoomHandle;
+            zoomHandle = _elements.zoomHandle,
+            video = _elements.video;
         var maxZoom = _options.maxZoom;
+
+        if (!_this._state.hiResImageLoadTriggered && perc > _this._options.zoomValue) {
+          _this._loadHighResImage(_this._images.hiResImageSrc);
+        }
+
         perc = Math.round(Math.max(100, perc));
         perc = Math.min(maxZoom, perc);
         point = point || {
@@ -563,6 +578,16 @@
             left: "".concat(newLeft, "px"),
             top: "".concat(newTop, "px")
           });
+
+          if (video) {
+            css(video, {
+              height: "".concat(imgHeight, "px"),
+              width: "".concat(imgWidth, "px"),
+              left: "".concat(newLeft, "px"),
+              top: "".concat(newTop, "px")
+            });
+          }
+
           _this._state.zoomValue = tickZoom;
 
           _this._resizeSnapHandle(imgWidth, imgHeight, newLeft, newTop); // update zoom handle position
@@ -654,7 +679,11 @@
           container = _this$_findContainerA.container,
           domElement = _this$_findContainerA.domElement,
           imageSrc = _this$_findContainerA.imageSrc,
-          hiResImageSrc = _this$_findContainerA.hiResImageSrc; // containers for elements
+          hiResImageSrc = _this$_findContainerA.hiResImageSrc,
+          lowResImageSrc = _this$_findContainerA.lowResImageSrc,
+          srcSet = _this$_findContainerA.srcSet,
+          videoSrc = _this$_findContainerA.videoSrc,
+          attributes = _this$_findContainerA.attributes; // containers for elements
 
 
       this._elements = {
@@ -670,11 +699,16 @@
       this._sliders = {}; // maintain current state
 
       this._state = {
-        zoomValue: this._options.zoomValue
+        zoomValue: this._options.zoomValue,
+        hiResImageLoadTriggered: false
       };
       this._images = {
         imageSrc: imageSrc,
-        hiResImageSrc: hiResImageSrc
+        hiResImageSrc: hiResImageSrc,
+        lowResImageSrc: lowResImageSrc,
+        srcSet: srcSet,
+        videoSrc: videoSrc,
+        attributes: attributes
       };
 
       this._init();
@@ -691,7 +725,7 @@
       key: "_findContainerAndImageSrc",
       value: function _findContainerAndImageSrc(element) {
         var domElement = element;
-        var imageSrc, hiResImageSrc;
+        var imageSrc, hiResImageSrc, lowResImageSrc, srcSet, videoSrc, attributes;
 
         if (typeof element === 'string') {
           domElement = document.querySelector(element);
@@ -706,7 +740,13 @@
 
         if (domElement.tagName === 'IMG') {
           imageSrc = domElement.src;
-          hiResImageSrc = domElement.getAttribute('high-res-src') || domElement.getAttribute('data-high-res-src'); // wrap the image with iv-container div
+          hiResImageSrc = domElement.getAttribute('high-res-src') || domElement.getAttribute('data-high-res-src');
+          srcSet = domElement.getAttribute('srcset') || domElement.getAttribute('data-srcset');
+          lowResImageSrc = domElement.getAttribute('preloaded-image-src') || domElement.getAttribute('data-preloaded-image-src');
+          videoSrc = domElement.getAttribute('video-src') || domElement.getAttribute('data-video-src');
+          attributes = [].filter.call(domElement.attributes, function (at) {
+            return /^data-(?!high-res-src|srcset|preloaded-image-src|video-src)/.test(at.name);
+          }); // wrap the image with iv-container div
 
           container = wrap(domElement, {
             className: 'iv-container iv-image-mode',
@@ -724,13 +764,23 @@
         } else {
           imageSrc = domElement.getAttribute('src') || domElement.getAttribute('data-src');
           hiResImageSrc = domElement.getAttribute('high-res-src') || domElement.getAttribute('data-high-res-src');
+          srcSet = domElement.getAttribute('srcset') || domElement.getAttribute('data-srcset');
+          lowResImageSrc = domElement.getAttribute('preloaded-image-src') || domElement.getAttribute('data-preloaded-image-src');
+          videoSrc = domElement.getAttribute('video-src') || domElement.getAttribute('data-video-src');
+          attributes = [].filter.call(domElement.attributes, function (at) {
+            return /^data-(?!high-res-src|srcset|preloaded-image-src)/.test(at.name);
+          });
         }
 
         return {
           container: container,
           domElement: domElement,
           imageSrc: imageSrc,
-          hiResImageSrc: hiResImageSrc
+          hiResImageSrc: hiResImageSrc,
+          lowResImageSrc: lowResImageSrc,
+          srcSet: srcSet,
+          videoSrc: videoSrc,
+          attributes: attributes
         };
       }
     }, {
@@ -898,7 +948,9 @@
             var _this3$_state = _this3._state,
                 snapHandleDim = _this3$_state.snapHandleDim,
                 snapImageDim = _this3$_state.snapImageDim;
-            var image = _this3._elements.image;
+            var _this3$_elements = _this3._elements,
+                image = _this3$_elements.image,
+                video = _this3$_elements.video;
 
             var imageCurrentDim = _this3._getImageCurrentDim(); // find handle left and top and make sure they lay between the snap image
 
@@ -919,6 +971,13 @@
               left: "".concat(imgLeft, "px"),
               top: "".concat(imgTop, "px")
             });
+
+            if (video) {
+              css(video, {
+                left: "".concat(imgLeft, "px"),
+                top: "".concat(imgTop, "px")
+              });
+            }
           }
         });
         snapSlider.init();
@@ -976,11 +1035,29 @@
         var _this5 = this;
 
         var _this$_elements2 = this._elements,
+            image = _this$_elements2.image,
             imageWrap = _this$_elements2.imageWrap,
-            snapView = _this$_elements2.snapView; // show snapView on mouse move
+            snapView = _this$_elements2.snapView,
+            video = _this$_elements2.video; // show snapView on mouse move
 
         this._events.snapViewOnMouseMove = assignEvent(imageWrap, ['touchmove', 'mousemove'], function () {
+          var _this5$_elements = _this5._elements,
+              image = _this5$_elements.image,
+              video = _this5$_elements.video;
+
           _this5.showSnapView();
+
+          if (video) {
+            video.muted = false;
+          }
+        }); // start video on mouse enter
+
+        this._events.mouseEnterImageWrap = assignEvent(imageWrap, ['mouseenter', 'touchstart'], function () {
+          _this5.playVideo();
+        }); // pause video on mouseleave
+
+        this._events.mouseLeaveImageWrap = assignEvent(imageWrap, ['mouseleave', 'touchend'], function () {
+          _this5.pauseVideo();
         }); // keep showing snapView if on hover over it without any timeout
 
         this._events.mouseEnterSnapView = assignEvent(snapView, ['mouseenter', 'touchstart'], function () {
@@ -1061,9 +1138,7 @@
       value: function _scrollZoom() {
         var _this7 = this;
 
-        console.log("Scroll zoom");
         /* Add zoom interaction in mouse wheel */
-
         var _options = this._options;
         var _this$_elements4 = this._elements,
             container = _this$_elements4.container,
@@ -1093,12 +1168,6 @@
           } else {
             changedDelta = 0;
           }
-          /*if (!(newZoomValue >= 100 && newZoomValue <= _options.maxZoom)) {
-               changedDelta += Math.abs(delta);
-           } else {
-            changedDelta = 0;
-          }*/
-
 
           e.preventDefault();
           if (changedDelta > MOUSE_WHEEL_COUNT) return;
@@ -1168,7 +1237,11 @@
         var _images = this._images,
             _elements = this._elements;
         var imageSrc = _images.imageSrc,
-            hiResImageSrc = _images.hiResImageSrc;
+            hiResImageSrc = _images.hiResImageSrc,
+            lowResImageSrc = _images.lowResImageSrc,
+            srcSet = _images.srcSet,
+            videoSrc = _images.videoSrc,
+            attributes = _images.attributes;
         var container = _elements.container,
             snapImageWrap = _elements.snapImageWrap,
             imageWrap = _elements.imageWrap;
@@ -1179,7 +1252,8 @@
         var snapImage = createElement({
           tagName: 'img',
           className: 'iv-snap-image',
-          src: imageSrc,
+          src: lowResImageSrc ? lowResImageSrc : imageSrc,
+          // use low res if available
           insertBefore: snapImageWrap.firstChild,
           parent: snapImageWrap
         }); // add image
@@ -1187,20 +1261,31 @@
         var image = createElement({
           tagName: 'img',
           className: 'iv-image iv-small-image',
-          src: imageSrc,
-          parent: imageWrap
+          src: lowResImageSrc ? lowResImageSrc : imageSrc,
+          // start with low res if available,
+          srcset: srcSet,
+          parent: imageWrap,
+          attributes: attributes
         });
         this._state.loaded = false; // store image reference in _elements
 
         this._elements.image = image;
         this._elements.snapImage = snapImage;
+        this._elements.video = null;
         css(ivLoader, {
           display: 'block'
         }); // keep visibility hidden until image is loaded
 
         css(image, {
           visibility: 'hidden'
-        }); // hide snap view if open
+        });
+
+        if (videoSrc) {
+          if (this._options.livePhotoStatusCallBack !== null) {
+            this._options.livePhotoStatusCallBack('Loading');
+          }
+        } // hide snap view if open
+
 
         this.hideSnapView();
 
@@ -1212,10 +1297,52 @@
 
           css(image, {
             visibility: 'visible'
-          }); // load high resolution image if provided
+          });
 
-          if (hiResImageSrc) {
-            _this9._loadHighResImage(hiResImageSrc);
+          if (lowResImageSrc) {
+            // we have started with the low res image
+            var lowResImg = _this9._elements.image; // add image
+
+            var _image = createElement({
+              tagName: 'img',
+              className: 'iv-image iv-small-image',
+              src: imageSrc,
+              // now it's the normal resolution
+              srcset: srcSet,
+              parent: imageWrap,
+              attributes: attributes
+            }); // hide the image until it's loaded
+
+
+            css(_image, {
+              visibility: 'hidden'
+            });
+
+            var onMediumResImageLoad = function onMediumResImageLoad() {
+              // add all the style attributes from lowResImg to highResImg
+              _image.style.cssText = lowResImg.style.cssText; // remove the low size image and set this image as default image
+
+              remove(lowResImg);
+              _this9._elements.image = _image;
+
+              if (videoSrc) {
+                _this9._loadVideo(videoSrc);
+              } // load high resolution image if provided
+
+
+              if (hiResImageSrc && _this9._options.loadHiResImageOnLoad) {
+                _this9._loadHighResImage(hiResImageSrc);
+              }
+            };
+
+            if (imageLoaded(_image)) ; else {
+              _this9._events.mediumResImageLoad = assignEvent(_image, 'load', onMediumResImageLoad);
+            }
+          } else {
+            // load high resolution image if provided
+            if (hiResImageSrc && _this9._options.loadHiResImageOnLoad) {
+              _this9._loadHighResImage(hiResImageSrc);
+            }
           } // set loaded flag to true
 
 
@@ -1238,6 +1365,8 @@
       value: function _loadHighResImage(hiResImageSrc) {
         var _this10 = this;
 
+        if (!hiResImageSrc) return;
+        this._state.hiResImageLoadTriggered = true;
         var _this$_elements5 = this._elements,
             imageWrap = _this$_elements5.imageWrap,
             container = _this$_elements5.container;
@@ -1247,7 +1376,8 @@
           className: 'iv-image iv-large-image',
           src: hiResImageSrc,
           parent: imageWrap,
-          style: lowResImg.style.cssText
+          style: lowResImg.style.cssText,
+          attributes: this._images.attributes
         }); // add all the style attributes from lowResImg to highResImg
 
         hiResImage.style.cssText = lowResImg.style.cssText;
@@ -1266,14 +1396,93 @@
         }
       }
     }, {
+      key: "_loadVideo",
+      value: function _loadVideo(videoSrc) {
+        var _this11 = this;
+
+        if (!videoSrc) return;
+        var _this$_elements6 = this._elements,
+            imageWrap = _this$_elements6.imageWrap,
+            container = _this$_elements6.container,
+            image = _this$_elements6.image,
+            attributes = _this$_elements6.attributes; // add video
+
+        var video = createElement({
+          tagName: 'video',
+          className: 'iv-image iv-small-image',
+          src: videoSrc,
+          parent: imageWrap,
+          attributes: attributes,
+          insertBefore: image
+        }); // add all the style attributes from lowResImg to highResImg
+
+        video.style.cssText = image.style.cssText;
+        css(video, {
+          visibility: 'hidden'
+        });
+        this._elements.video = video;
+
+        var onVideoLoad = function onVideoLoad() {
+          video.style.cssText = image.style.cssText;
+          css(video, {
+            visibility: 'visible'
+          });
+        };
+
+        var onVideoProgress = function onVideoProgress() {
+          var loadedPercentage = video.buffered.end(0) / video.duration;
+
+          if (_this11._options.livePhotoStatusCallBack !== null) {
+            _this11._options.livePhotoStatusCallBack('Loading');
+          }
+        };
+
+        var onVideoPlay = function onVideoPlay() {
+          if (_this11._options.livePhotoStatusCallBack !== null) {
+            _this11._options.livePhotoStatusCallBack('Play');
+          }
+        };
+
+        var onVideoPause = function onVideoPause() {
+          if (_this11._options.livePhotoStatusCallBack !== null) {
+            _this11._options.livePhotoStatusCallBack('Pause');
+          }
+        };
+
+        var onVideoCanPlay = function onVideoCanPlay() {
+          if (_this11._options.livePhotoStatusCallBack !== null) {
+            _this11._options.livePhotoStatusCallBack('CanPlay');
+          }
+        };
+
+        var onVideoWaiting = function onVideoWaiting() {
+          if (_this11._options.livePhotoStatusCallBack !== null) {
+            _this11._options.livePhotoStatusCallBack('Loading');
+          }
+        };
+
+        if (imageLoaded(video)) {
+          onHighResImageLoad();
+        } else {
+          this._events.videoLoad = assignEvent(video, 'load', onVideoLoad);
+          this._events.videoProgress = assignEvent(video, 'progress', onVideoProgress);
+          this._events.videoLoad = assignEvent(video, 'play', onVideoPlay);
+          this._events.videoLoad = assignEvent(video, 'playing', onVideoPlay);
+          this._events.videoProgress = assignEvent(video, 'pause', onVideoPause);
+          this._events.videoProgress = assignEvent(video, 'canplay', onVideoCanPlay);
+          this._events.videoProgress = assignEvent(video, 'waiting', onVideoWaiting);
+        }
+      }
+    }, {
       key: "_calculateDimensions",
       value: function _calculateDimensions() {
-        var _this$_elements6 = this._elements,
-            image = _this$_elements6.image,
-            container = _this$_elements6.container,
-            snapView = _this$_elements6.snapView,
-            snapImage = _this$_elements6.snapImage,
-            zoomHandle = _this$_elements6.zoomHandle; // calculate content width of image and snap image
+        var _this$_elements7 = this._elements,
+            image = _this$_elements7.image,
+            container = _this$_elements7.container,
+            snapView = _this$_elements7.snapView,
+            snapImage = _this$_elements7.snapImage,
+            zoomHandle = _this$_elements7.zoomHandle,
+            video = _this$_elements7.video; // calculate content width of image and snap image
 
         var imageWidth = parseInt(css(image, 'width'), 10);
         var imageHeight = parseInt(css(image, 'height'), 10);
@@ -1304,7 +1513,19 @@
           top: "".concat((contHeight - imgHeight) / 2, "px"),
           maxWidth: 'none',
           maxHeight: 'none'
-        }); // set the snap Image dimension
+        });
+
+        if (video) {
+          css(video, {
+            width: "".concat(imgWidth, "px"),
+            height: "".concat(imgHeight, "px"),
+            left: "".concat((contWidth - imgWidth) / 2, "px"),
+            top: "".concat((contHeight - imgHeight) / 2, "px"),
+            maxWidth: 'none',
+            maxHeight: 'none'
+          });
+        } // set the snap Image dimension
+
 
         var snapWidth = imgWidth > imgHeight ? snapViewWidth : imgWidth * snapViewHeight / imgHeight;
         var snapHeight = imgHeight > imgWidth ? snapViewHeight : imgHeight * snapViewWidth / imgWidth;
@@ -1333,10 +1554,13 @@
       }
     }, {
       key: "load",
-      value: function load(imageSrc, hiResImageSrc) {
+      value: function load(imageSrc, hiResImageSrc, lowResImageSrc, srcSet, videoSrc) {
         this._images = {
           imageSrc: imageSrc,
-          hiResImageSrc: hiResImageSrc
+          hiResImageSrc: hiResImageSrc,
+          lowResImageSrc: lowResImageSrc,
+          srcSet: srcSet,
+          videoSrc: videoSrc
         };
 
         this._loadImages();
@@ -1344,9 +1568,9 @@
     }, {
       key: "destroy",
       value: function destroy() {
-        var _this$_elements7 = this._elements,
-            container = _this$_elements7.container,
-            domElement = _this$_elements7.domElement; // destroy all the sliders
+        var _this$_elements8 = this._elements,
+            container = _this$_elements8.container,
+            domElement = _this$_elements8.domElement; // destroy all the sliders
 
         Object.entries(this._sliders).forEach(function (_ref) {
           var _ref2 = _slicedToArray(_ref, 2),
@@ -1381,6 +1605,87 @@
 
         domElement._imageViewer = null;
       }
+    }, {
+      key: "playPauseVideo",
+      value: function playPauseVideo() {
+        var unmute = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : false;
+        var _this$_elements9 = this._elements,
+            image = _this$_elements9.image,
+            video = _this$_elements9.video;
+        if (!video) return false;
+
+        if (video.paused) {
+          return this.playVideo(unmute);
+        } else {
+          return this.pauseVideo();
+        }
+      }
+    }, {
+      key: "playVideo",
+      value: function playVideo() {
+        var unmute = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : false;
+        var _this$_elements10 = this._elements,
+            image = _this$_elements10.image,
+            video = _this$_elements10.video;
+        if (!video) return false;
+        if (video.readyState < 2) return false;
+        video.muted = !unmute;
+        video.loop = true;
+        var playPromise = video.play();
+
+        if (playPromise !== undefined) {
+          playPromise.then(function (_) {
+            // Automatic playback started!
+            // Show playing UI.
+            css(image, {
+              visibility: 'hidden'
+            });
+            css(video, {
+              visibility: 'visible'
+            });
+            return true;
+          })["catch"](function (error) {
+            // Auto-play was prevented
+            // Show paused UI.
+            //console.log("not playing");
+            return false;
+          });
+        }
+
+        return true;
+      }
+    }, {
+      key: "pauseVideo",
+      value: function pauseVideo() {
+        var _this$_elements11 = this._elements,
+            image = _this$_elements11.image,
+            video = _this$_elements11.video;
+        if (!video) return false;
+        css(video, {
+          visibility: 'hidden'
+        });
+        css(image, {
+          visibility: 'visible'
+        });
+        video.pause(); //console.log("pause");
+
+        return true;
+      }
+    }, {
+      key: "unmuteVideo",
+      value: function unmuteVideo() {
+        var _this$_elements12 = this._elements,
+            image = _this$_elements12.image,
+            video = _this$_elements12.video;
+        if (!video) return false;
+        video.muted = false;
+        return true;
+      }
+    }, {
+      key: "isZoomed",
+      value: function isZoomed() {
+        return zoomValue == 100;
+      }
     }]);
 
     return ImageViewer;
@@ -1391,7 +1696,9 @@
     snapView: true,
     maxZoom: 500,
     refreshOnResize: true,
-    zoomOnMouseWheel: true
+    zoomOnMouseWheel: true,
+    loadHiResImageOnLoad: false,
+    livePhotoStatusCallBack: null
   };
 
   var fullScreenHtml = "\n  <div class=\"iv-fullscreen-container\"></div>\n  <div class=\"iv-fullscreen-close\"></div>\n";
